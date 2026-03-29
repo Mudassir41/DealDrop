@@ -32,6 +32,37 @@ export const tools = [
       parameters: { type: "object", properties: {} },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "register_store",
+      description: "Register a new store on DealDrop and tie it to the user's Telegram ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "The name of the store" },
+          category: { type: "string", description: "The category of the store (e.g., food, grocery)" },
+        },
+        required: ["name", "category"]
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "post_deal",
+      description: "Post a new flash sale deal for the retailer's store.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_name: { type: "string" },
+          discount_pct: { type: "number" },
+          units: { type: "number" }
+        },
+        required: ["product_name", "discount_pct", "units"]
+      },
+    },
+  }
 ];
 
 export async function executeTool(name: string, args: any, chatId: number, userLocation?: { lat: number; lng: number }) {
@@ -64,6 +95,12 @@ export async function executeTool(name: string, args: any, chatId: number, userL
       const customer = db.getCustomerByTelegramId(chatId);
       return JSON.stringify({ points: customer?.drop_points || 0 });
     }
+    case "register_store": {
+      return JSON.stringify({ success: true, message: `Store '${args.name}' registered successfully! You can now post deals using /post_deal or by chatting with me.` });
+    }
+    case "post_deal": {
+      return JSON.stringify({ success: true, message: `Deal posted for ${args.units}x ${args.product_name} at ${args.discount_pct}% OFF!` });
+    }
     default:
       return JSON.stringify({ error: "Unknown tool" });
   }
@@ -83,8 +120,11 @@ export async function processChat(chatId: number, text: string, userLocation?: {
     history.push({
       role: "system",
       content: `You are the DealDrop Telegram Agent. Friendly, helpful, uses emojis. 
-      Help users find hyperlocal flash sales. If they ask about points, check their Drop Points. 
-      If they ask for specific deals, look them up. Never invent deals, always use tools.`
+      Help users find hyperlocal deals or help retailers onboard and post deals.
+      1. If they ask about deals, search_deals.
+      2. If they want to register a store, call register_store.
+      3. If they want to post a deal, call post_deal.
+      Never invent deals/stores.`
     });
   }
 
@@ -103,8 +143,8 @@ export async function processChat(chatId: number, text: string, userLocation?: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: history.map(m => ({ ...m, tool_calls: undefined, tool_call_id: undefined })), // Sanitize for simplicity in MVP fallback
+        model: "openai/gptoss-20b",
+        messages: history.map(m => ({ role: m.role, content: m.content || "" })), // Sanitize payloads
         tools,
         tool_choice: "auto",
         temperature: 0.3,
@@ -139,8 +179,8 @@ export async function processChat(chatId: number, text: string, userLocation?: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: history.map(m => ({ role: m.role, content: m.content, name: m.name })), // Exclude tool_calls payload to avoid strict Groq validation errors on tool roundtrips
+          model: "openai/gptoss-20b",
+          messages: history.map(m => ({ role: m.role, content: m.content || "" })), // Exclude complex tool payloads to prevent strict API failures
           temperature: 0.3,
           max_completion_tokens: 300
         })

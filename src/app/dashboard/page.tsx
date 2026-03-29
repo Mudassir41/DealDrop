@@ -31,6 +31,7 @@ interface Profile {
   persona: string;
   categories: string[];
   telegram_chat_id?: number | string;
+  drop_points?: number;
 }
 
 const TABS = [
@@ -101,7 +102,9 @@ export default function DashboardPage() {
       router.push("/onboard");
       return;
     }
-    setProfile(JSON.parse(saved));
+    const parsed = JSON.parse(saved);
+    if (typeof parsed.drop_points === 'undefined') parsed.drop_points = 150; // Mock initial points for demo
+    setProfile(parsed);
 
     const savedLoc = localStorage.getItem("dealdrop_location");
     const savedLabel = localStorage.getItem("dealdrop_location_label");
@@ -157,6 +160,8 @@ export default function DashboardPage() {
 
   const claimDeal = async (dealId: string) => {
     setClaiming(dealId);
+    // Earning mock points purely for claiming a deal on UI
+    setProfile(prev => prev ? { ...prev, drop_points: (prev.drop_points || 0) + 10 } : prev);
     try {
       const identifier = profile?.telegram_chat_id || profile?.persona || "anon";
       setClaimedDealQr(`${dealId}-${identifier}-${Date.now().toString().slice(-4)}`);

@@ -127,7 +127,7 @@ export default function DealerDashboard() {
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     {!ratedDeals[deal.id] ? (
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-500">Rate Buyers:</span>
+                        <span className="text-xs font-medium text-gray-500">Rate Platform:</span>
                         <div className="flex gap-1">
                           {[1, 2, 3, 4, 5].map((star) => (
                             <button
@@ -154,7 +154,7 @@ export default function DealerDashboard() {
                       </div>
                     ) : (
                       <div className="text-xs text-center font-medium text-emerald-600 bg-emerald-50 py-2 rounded-lg">
-                        Buyers Rated!
+                        Platform Rated!
                       </div>
                     )}
                   </div>

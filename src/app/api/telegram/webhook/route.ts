@@ -63,35 +63,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
 
-      // Fast-path Router via gptoss-20b
-      const apiKey = process.env.GROQ_API_KEY;
+      // Fast-path Router via Regex (latency and token optimization)
       let intent = "CHAT";
-      
-      if (apiKey && text) {
-        try {
-          const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${apiKey}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              model: "openai/gptoss-20b",
-              messages: [
-                { role: "system", content: "Classify user intent into exactly one word: GET_LOCATION, NEARBY_DEALS, CATEGORIES, or CHAT. If asking for deals near them, use NEARBY_DEALS. If asking what types of deals exist, use CATEGORIES. If general conversation, use CHAT." },
-                { role: "user", content: text }
-              ],
-              temperature: 0.1,
-              max_tokens: 10
-            })
-          });
-          const data = await res.json();
-          const response = data.choices[0].message.content.trim().toUpperCase();
-          if (["GET_LOCATION", "NEARBY_DEALS", "CATEGORIES", "CHAT"].includes(response)) {
-            intent = response;
-          }
-        } catch (e) {
-          console.error("Router failed, defaulting to CHAT", e);
+      if (text) {
+        const lower = text.toLowerCase();
+        if (lower.includes("location") || lower === "/location") {
+          intent = "GET_LOCATION";
+        } else if (lower.includes("nearby") || lower === "/nearby") {
+          intent = "NEARBY_DEALS";
+        } else if (lower.includes("categories") || lower === "/categories") {
+          intent = "CATEGORIES";
         }
       }
 
