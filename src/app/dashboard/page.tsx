@@ -50,12 +50,14 @@ const PERSONA_LABELS: Record<string, { emoji: string; label: string }> = {
 };
 
 const AREA_PRESETS = [
-  { label: "Vandalur", lat: 12.9010, lng: 80.0990 },
-  { label: "Tambaram", lat: 12.9249, lng: 80.1000 },
-  { label: "Chromepet", lat: 12.9516, lng: 80.1462 },
-  { label: "Guindy", lat: 13.0067, lng: 80.2206 },
-  { label: "T. Nagar", lat: 13.0418, lng: 80.2341 },
-  { label: "Anna Nagar", lat: 13.0850, lng: 80.2101 },
+  { label: "T. Nagar", lat: 13.0394, lng: 80.2325 },
+  { label: "Velachery", lat: 12.9820, lng: 80.2200 },
+  { label: "Anna Nagar", lat: 13.0870, lng: 80.2165 },
+  { label: "Tambaram", lat: 12.9240, lng: 80.1155 },
+  { label: "Navalur", lat: 12.8365, lng: 80.2260 },
+  { label: "Pondicherry", lat: 11.9340, lng: 79.8310 },
+  { label: "Salem", lat: 11.6825, lng: 78.1255 },
+  { label: "Indiranagar", lat: 12.9785, lng: 77.6390 }
 ];
 
 function timeRemaining(expiresAt: string): string {
@@ -178,6 +180,15 @@ export default function DashboardPage() {
 
   const personaInfo = PERSONA_LABELS[profile.persona] || PERSONA_LABELS.hunter;
 
+  const handleMapClick = (lat: number, lng: number) => {
+    const newLoc = { lat, lng };
+    setLocation(newLoc);
+    setLocationLabel("Custom Pin");
+    localStorage.setItem("dealdrop_location", JSON.stringify(newLoc));
+    localStorage.setItem("dealdrop_location_label", "Custom Pin");
+    setShowLocationPicker(false);
+  };
+
   const setArea = (area: typeof AREA_PRESETS[0]) => {
     const loc = { lat: area.lat, lng: area.lng };
     setLocation(loc);
@@ -226,6 +237,12 @@ export default function DashboardPage() {
             <div className="bg-brand-cream rounded-xl p-3 border border-orange-100">
               <div className="text-xs font-medium text-brand-navy mb-2">📍 Select your area:</div>
               <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => { setShowLocationPicker(false); alert("Tap anywhere on the map to drop a pin and see deals!"); }}
+                  className="text-xs px-3 py-1.5 rounded-full font-bold bg-brand-navy text-white transition-all shadow-md shrink-0 flex items-center"
+                >
+                  📍 Drop Custom Pin
+                </button>
                 {AREA_PRESETS.map((area) => (
                   <button
                     key={area.label}
@@ -270,7 +287,7 @@ export default function DashboardPage() {
         {/* Map — always visible on desktop, toggleable on mobile */}
         {(showMap || typeof window !== 'undefined') && location && (
           <div className={`${showMap ? 'block' : 'hidden lg:block'} w-full lg:flex-1 h-[250px] lg:h-full p-4`}>
-            <DealMap deals={deals} center={location} onDealClick={setSelectedDeal} />
+            <DealMap deals={deals} center={location} onDealClick={setSelectedDeal} onMapClick={handleMapClick} />
           </div>
         )}
 

@@ -9,15 +9,19 @@ interface DealMapProps {
   deals: any[];
   center: { lat: number; lng: number };
   onDealClick: (deal: any) => void;
+  onMapClick?: (lat: number, lng: number) => void;
 }
 
-export default function DealMap({ deals, center, onDealClick }: DealMapProps) {
+export default function DealMap({ deals, center, onDealClick, onMapClick }: DealMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersGroupRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const [isSatellite, setIsSatellite] = useState(false);
+  
+  const onMapClickRef = useRef(onMapClick);
+  useEffect(() => { onMapClickRef.current = onMapClick; }, [onMapClick]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !mapRef.current) return;
@@ -42,6 +46,12 @@ export default function DealMap({ deals, center, onDealClick }: DealMapProps) {
         iconAnchor: [8, 8]
       });
       userMarkerRef.current = L.marker([center.lat, center.lng], { icon: userIcon, zIndexOffset: 1000 }).addTo(mapInstanceRef.current);
+      
+      mapInstanceRef.current.on('click', (e) => {
+        if (onMapClickRef.current) {
+          onMapClickRef.current(e.latlng.lat, e.latlng.lng);
+        }
+      });
     }
     
     return () => {
