@@ -84,3 +84,13 @@ INSERT INTO deals (
 -- 6. AUTO-EXPIRE (optional — run as a cron or just call periodically)
 -- UPDATE deals SET status = 'sold_out' WHERE status = 'active' AND units_claimed >= units_available;
 -- UPDATE deals SET status = 'expired' WHERE status = 'active' AND expires_at < now();
+
+-- 7. REVIEWS
+CREATE TABLE IF NOT EXISTS reviews (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  deal_id UUID REFERENCES deals(id) ON DELETE CASCADE,
+  store_id UUID REFERENCES stores(id) ON DELETE CASCADE,
+  reviewer_type TEXT CHECK (reviewer_type IN ('buyer', 'dealer')),
+  rating INT CHECK (rating >= 1 AND rating <= 5),
+  created_at TIMESTAMPTZ DEFAULT now()
+);

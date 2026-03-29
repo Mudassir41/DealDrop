@@ -11,6 +11,7 @@ export const metadata: Metadata = {
     description: "From overstock to sold out, in under 3 minutes.",
     type: "website",
   },
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -20,7 +21,27 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').then(
+                    function(registration) {
+                      console.log('ServiceWorker registration successful');
+                    },
+                    function(err) {
+                      console.log('ServiceWorker registration failed: ', err);
+                    }
+                  );
+                });
+              }
+            `,
+          }}
+        />
+      </body>
     </html>
   );
 }

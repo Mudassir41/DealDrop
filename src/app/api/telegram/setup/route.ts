@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setWebhook } from "@/lib/telegram";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);

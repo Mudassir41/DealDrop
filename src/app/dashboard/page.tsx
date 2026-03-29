@@ -24,11 +24,13 @@ interface Deal {
   expires_at: string;
   distance?: number;
   score?: number;
+  stores?: { verified: boolean };
 }
 
 interface Profile {
   persona: string;
   categories: string[];
+  telegram_chat_id?: number | string;
 }
 
 const TABS = [
@@ -77,6 +79,20 @@ export default function DashboardPage() {
   const [claimedDealQr, setClaimedDealQr] = useState<string | null>(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [locationLabel, setLocationLabel] = useState("Vandalur");
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPushEnabled(Notification.permission === "granted");
+    }
+  }, []);
+
+  const enablePush = async () => {
+    if (!("Notification" in window)) return;
+    const perm = await Notification.requestPermission();
+    setPushEnabled(perm === "granted");
+  };
 
   // Load profile from localStorage
   useEffect(() => {
@@ -142,8 +158,9 @@ export default function DashboardPage() {
   const claimDeal = async (dealId: string) => {
     setClaiming(dealId);
     try {
-      await fetch(`/api/deals/${dealId}/claim`, { method: "POST" });
-      setClaimedDealQr(`${dealId}-${profile?.persona}-${Date.now().toString().slice(-4)}`);
+      const identifier = profile?.telegram_chat_id || profile?.persona || "anon";
+      setClaimedDealQr(`${dealId}-${identifier}-${Date.now().toString().slice(-4)}`);
+      setRatingSubmitted(false);
       fetchFeed();
     } catch {
       // silent
@@ -255,6 +272,16 @@ export default function DashboardPage() {
         {/* Deal List */}
         <div className="w-full lg:w-[420px] lg:border-l lg:border-gray-100 overflow-y-auto p-4">
         {/* Greeting */}
+        {!pushEnabled && (
+          <div className="mb-4 bg-orange-50 border border-brand-orange/20 rounded-xl p-3 flex items-center justify-between">
+            <div className="text-xs text-brand-navy">
+              <strong>Enable Alerts</strong> to instantly know when nearby deals drop.
+            </div>
+            <button onClick={enablePush} className="ml-3 text-[10px] bg-brand-orange text-white px-3 py-1.5 rounded-lg font-bold whitespace-nowrap">
+              Turn On
+            </button>
+          </div>
+        )}
         <div className="mb-4">
           <h1 className="text-xl font-bold text-brand-navy">
             {activeTab === "foryou" ? `${personaInfo.emoji} Deals for you` :
@@ -311,7 +338,16 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                      <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{deal.store_name}</div>
+                      <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        {deal.store_name}
+                        {deal.stores?.verified && (
+                          <span className="text-blue-500" title="Verified Retailer">
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            </svg>
+                          </span>
+                        )}
+                      </div>
                       <h3 className="text-base font-semibold text-brand-navy">{deal.product_name}</h3>
                     </div>
                     <span className="bg-brand-orange text-white px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap ml-3">
@@ -378,6 +414,39 @@ export default function DashboardPage() {
                 </div>
                 
                 <p className="text-xs font-mono text-gray-400 mb-6">ID: {claimedDealQr}</p>
+                
+                {!ratingSubmitted ? (
+                  <div className="mb-6">
+                    <p className="text-sm font-medium text-brand-navy mb-2">Rate the Store</p>
+                    <div className="flex justify-center gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={async () => {
+                            await fetch("/api/reviews", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                deal_id: selectedDeal!.id,
+                                store_id: selectedDeal!.id, // Demo fallback: deal_id as store_id if real store_id not exposed
+                                reviewer_type: "buyer",
+                                rating: star
+                              })
+                            });
+                            setRatingSubmitted(true);
+                          }}
+                          className="text-2xl hover:scale-110 transition-transform"
+                        >
+                          ⭐
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-6 text-sm font-medium text-emerald-600 bg-emerald-50 py-2 rounded-xl">
+                    Thank you for rating!
+                  </div>
+                )}
                 
                 <button
                   onClick={() => { setSelectedDeal(null); setClaimedDealQr(null); }}

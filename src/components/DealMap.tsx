@@ -93,8 +93,16 @@ export default function DealMap({ deals, center, onDealClick }: DealMapProps) {
       
       const popupContent = document.createElement('div');
       popupContent.className = 'p-1 min-w-[160px]';
+      
+      const verifiedBadge = deal.stores?.verified ? `
+        <span class="text-blue-500 inline-block align-middle ml-1" title="Verified Retailer">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+        </span>` : '';
+        
       popupContent.innerHTML = `
-        <h3 class="font-bold text-gray-900 text-lg m-0 mb-1 leading-tight">${deal.store_name}</h3>
+        <h3 class="font-bold text-gray-900 text-lg m-0 mb-1 leading-tight flex items-center">${deal.store_name} ${verifiedBadge}</h3>
         <p class="text-sm text-gray-600 m-0 mb-1 line-clamp-1">${deal.product_name}</p>
         <p class="text-[#FF6B35] font-bold text-sm m-0 mb-3">${deal.discount_pct}% OFF</p>
       `;

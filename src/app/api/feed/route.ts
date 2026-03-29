@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   try {
     let query = supabase
       .from("deals")
-      .select("*")
+      .select("*, stores(verified)")
       .eq("status", "active")
       .gt("expires_at", new Date().toISOString());
 

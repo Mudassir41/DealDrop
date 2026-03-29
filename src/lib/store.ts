@@ -44,6 +44,7 @@ export interface Customer {
   category_prefs: string[];
   latitude: number;
   longitude: number;
+  drop_points: number;
   created_at: string;
 }
 
@@ -211,5 +212,13 @@ export const db = {
     }
     customers.push(customer);
     return customer;
+  },
+  awardDropPoints: (chatId: number, amount: number) => {
+    const customer = customers.find(c => c.telegram_chat_id === chatId);
+    if (customer) {
+      customer.drop_points += amount;
+      return customer;
+    }
+    return null;
   },
 };

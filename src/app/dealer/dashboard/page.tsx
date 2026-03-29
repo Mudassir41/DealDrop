@@ -6,6 +6,7 @@ import Link from "next/link";
 export default function DealerDashboard() {
   const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ratedDeals, setRatedDeals] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadMyDeals();
@@ -62,9 +63,14 @@ export default function DealerDashboard() {
       <div className="max-w-xl w-full bg-white min-h-screen shadow-sm border-x border-gray-100 p-6 object-contain">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl font-bold text-brand-navy">My Store Deals</h1>
-          <Link href="/dealer" className="bg-brand-orange text-white px-4 py-2 rounded-xl text-sm font-semibold">
-            + New Deal
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/dealer/scan" className="bg-brand-navy text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-1 hover:bg-gray-800 transition-colors">
+              <span>📷</span> Scan QR
+            </Link>
+            <Link href="/dealer" className="bg-brand-orange text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-brand-orange-dark transition-colors">
+              + New Deal
+            </Link>
+          </div>
         </div>
 
         {loading ? (
@@ -114,6 +120,43 @@ export default function DealerDashboard() {
                     >
                       Edit Stock
                     </button>
+                  </div>
+                )}
+                
+                {(deal.units_claimed || 0) > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    {!ratedDeals[deal.id] ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-gray-500">Rate Buyers:</span>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              onClick={async () => {
+                                await fetch("/api/reviews", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    deal_id: deal.id,
+                                    store_id: deal.id, // Demo fallback
+                                    reviewer_type: "dealer",
+                                    rating: star
+                                  })
+                                });
+                                setRatedDeals(prev => ({ ...prev, [deal.id]: true }));
+                              }}
+                              className="text-lg hover:scale-110 transition-transform"
+                            >
+                              ⭐
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-center font-medium text-emerald-600 bg-emerald-50 py-2 rounded-lg">
+                        Buyers Rated!
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
