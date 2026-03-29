@@ -45,6 +45,15 @@ const PERSONA_LABELS: Record<string, { emoji: string; label: string }> = {
   hunter: { emoji: "🛍️", label: "Deal Hunter" },
 };
 
+const AREA_PRESETS = [
+  { label: "Vandalur", lat: 12.9010, lng: 80.0990 },
+  { label: "Tambaram", lat: 12.9249, lng: 80.1000 },
+  { label: "Chromepet", lat: 12.9516, lng: 80.1462 },
+  { label: "Guindy", lat: 13.0067, lng: 80.2206 },
+  { label: "T. Nagar", lat: 13.0418, lng: 80.2341 },
+  { label: "Anna Nagar", lat: 13.0850, lng: 80.2101 },
+];
+
 function timeRemaining(expiresAt: string): string {
   const diff = new Date(expiresAt).getTime() - Date.now();
   if (diff <= 0) return "Expired";
@@ -61,9 +70,11 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("foryou");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [showMap, setShowMap] = useState(false);
+  const [showMap, setShowMap] = useState(true);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [locationLabel, setLocationLabel] = useState("Vandalur");
 
   // Load profile from localStorage
   useEffect(() => {
@@ -75,19 +86,27 @@ export default function DashboardPage() {
     setProfile(JSON.parse(saved));
 
     const savedLoc = localStorage.getItem("dealdrop_location");
+    const savedLabel = localStorage.getItem("dealdrop_location_label");
     if (savedLoc) {
       setLocation(JSON.parse(savedLoc));
+      if (savedLabel) setLocationLabel(savedLabel);
     } else if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           setLocation(loc);
+          setLocationLabel("GPS Location");
           localStorage.setItem("dealdrop_location", JSON.stringify(loc));
         },
-        () => setLocation({ lat: 12.9716, lng: 77.5946 })
+        () => {
+          const fallback = { lat: 12.9010, lng: 80.0990 };
+          setLocation(fallback);
+          setShowLocationPicker(true);
+        }
       );
     } else {
-      setLocation({ lat: 12.9716, lng: 77.5946 });
+      setLocation({ lat: 12.9010, lng: 80.0990 });
+      setShowLocationPicker(true);
     }
   }, [router]);
 
@@ -135,21 +154,33 @@ export default function DashboardPage() {
 
   const personaInfo = PERSONA_LABELS[profile.persona] || PERSONA_LABELS.hunter;
 
+  const setArea = (area: typeof AREA_PRESETS[0]) => {
+    const loc = { lat: area.lat, lng: area.lng };
+    setLocation(loc);
+    setLocationLabel(area.label);
+    localStorage.setItem("dealdrop_location", JSON.stringify(loc));
+    localStorage.setItem("dealdrop_location_label", area.label);
+    setShowLocationPicker(false);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-16 lg:pb-0">
       {/* Top Bar */}
       <nav className="bg-white border-b border-gray-100 sticky top-0 z-50">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-brand-orange rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">D</span>
             </div>
             <div>
               <div className="text-sm font-bold text-brand-navy">DealDrop</div>
-              <div className="text-[10px] text-gray-400 flex items-center gap-1">
+              <button
+                onClick={() => setShowLocationPicker(!showLocationPicker)}
+                className="text-[10px] text-gray-400 flex items-center gap-1 hover:text-brand-orange transition-colors"
+              >
                 <span className="w-1.5 h-1.5 bg-brand-emerald rounded-full" />
-                {location ? "Location active" : "Getting location..."}
-              </div>
+                📍 {locationLabel} ▾
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -165,8 +196,32 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Location Picker Dropdown */}
+        {showLocationPicker && (
+          <div className="max-w-6xl mx-auto px-4 pb-3">
+            <div className="bg-brand-cream rounded-xl p-3 border border-orange-100">
+              <div className="text-xs font-medium text-brand-navy mb-2">📍 Select your area:</div>
+              <div className="flex flex-wrap gap-2">
+                {AREA_PRESETS.map((area) => (
+                  <button
+                    key={area.label}
+                    onClick={() => setArea(area)}
+                    className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
+                      locationLabel === area.label
+                        ? "bg-brand-orange text-white"
+                        : "bg-white text-gray-600 border border-gray-200 hover:border-brand-orange"
+                    }`}
+                  >
+                    {area.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Tab Bar */}
-        <div className="max-w-lg mx-auto px-4 pb-2">
+        <div className="max-w-6xl mx-auto px-4 pb-2">
           <div className="flex gap-1">
             {TABS.map((tab) => (
               <button
@@ -186,15 +241,17 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      {/* Content */}
-      <div className="max-w-lg mx-auto px-4 py-4">
-        {/* Map Toggle */}
-        {showMap && location && (
-          <div className="h-[250px] mb-4 rounded-2xl overflow-hidden">
+      {/* Content — responsive: side-by-side on desktop */}
+      <div className="max-w-6xl mx-auto flex flex-col lg:flex-row lg:h-[calc(100vh-120px)]">
+        {/* Map — always visible on desktop, toggleable on mobile */}
+        {(showMap || typeof window !== 'undefined') && location && (
+          <div className={`${showMap ? 'block' : 'hidden lg:block'} w-full lg:flex-1 h-[250px] lg:h-full p-4`}>
             <DealMap deals={deals} center={location} onDealClick={setSelectedDeal} />
           </div>
         )}
 
+        {/* Deal List */}
+        <div className="w-full lg:w-[420px] lg:border-l lg:border-gray-100 overflow-y-auto p-4">
         {/* Greeting */}
         <div className="mb-4">
           <h1 className="text-xl font-bold text-brand-navy">
@@ -204,7 +261,7 @@ export default function DashboardPage() {
              "⏰ Expiring soon"}
           </h1>
           <p className="text-xs text-gray-400 mt-0.5">
-            {deals.length} deal{deals.length !== 1 ? "s" : ""} available · Refreshes every 15s
+            {deals.length} deal{deals.length !== 1 ? "s" : ""} near {locationLabel} · Refreshes every 15s
           </p>
         </div>
 
@@ -286,7 +343,8 @@ export default function DashboardPage() {
             })}
           </div>
         )}
-      </div>
+      </div>{/* close deal list sidebar */}
+      </div>{/* close flex container */}
 
       {/* Deal Detail Modal */}
       {selectedDeal && (
@@ -359,8 +417,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50">
+      {/* Bottom Navigation — mobile only */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 lg:hidden">
         <div className="max-w-lg mx-auto flex items-center justify-around py-2">
           <Link href="/" className="flex flex-col items-center gap-0.5 py-1 px-3 text-gray-400">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
