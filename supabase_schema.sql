@@ -60,21 +60,26 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 5. SEED DATA (4 demo deals for immediate demo-ability)
+-- 5. SEED DATA — Vandalur / Chennai area
 INSERT INTO deals (
   store_name, product_name, description, category,
   discount_pct, original_price, sale_price,
   units_available, units_claimed,
   geofence_radius, expires_at, latitude, longitude, live_viewers
 ) VALUES
-  ('Mehta Bakery', 'Fresh Whole Wheat Bread', 'Freshly baked whole wheat bread, 400g loaves. Made this morning.', 'food',
-   50, 60, 30, 25, 5, 1000, now() + interval '2 hours', 12.9716, 77.5946, 12),
-  ('StyleHub Fashion', 'Cotton Kurtas — End of Season', 'Premium cotton kurtas, all sizes. Clearing end-of-season stock.', 'fashion',
-   60, 1200, 480, 40, 8, 2000, now() + interval '4 hours', 12.9750, 77.5980, 8),
-  ('FreshMart Groceries', 'Organic Mangoes — 1kg Pack', 'Alphonso mangoes, tree-ripened. Near expiry — must sell today.', 'grocery',
-   40, 350, 210, 15, 3, 1500, now() + interval '90 minutes', 12.9680, 77.5910, 18),
-  ('PharmaCare Plus', 'Vitamin D3 Supplements', '60 tablets pack, approaching best-before date. Same quality.', 'pharmacy',
-   35, 450, 292, 20, 2, 1000, now() + interval '3 hours', 12.9730, 77.6010, 5);
+  ('Sri Murugan Bakery', 'Fresh Wheat Bread Loaves', 'Freshly baked wheat bread, 400g. Made this morning — must sell today.', 'food',
+   50, 60, 30, 25, 5, 1000, now() + interval '2 hours', 12.9010, 80.0990, 14),
+  ('Vandalur Fashion Hub', 'Cotton Salwar Suits — Clearance', 'End of season cotton salwar suits, all sizes. Premium quality.', 'fashion',
+   60, 900, 360, 30, 6, 2000, now() + interval '4 hours', 12.9045, 80.1020, 9),
+  ('Chennai Fresh Mart', 'Organic Tomatoes — 1kg', 'Farm-fresh tomatoes from Hosur. Near expiry — heavy discount.', 'grocery',
+   40, 80, 48, 20, 4, 1500, now() + interval '90 minutes', 12.8975, 80.0965, 21),
+  ('MedPlus Vandalur', 'Vitamin C + Zinc Tablets', '60 tablets, approaching best-before. Same quality, big discount.', 'pharmacy',
+   35, 350, 227, 18, 2, 1000, now() + interval '3 hours', 12.9030, 80.1010, 6),
+  ('Zudio Vandalur', 'Kids T-Shirts Pack of 3', 'Cotton t-shirts for kids age 4-12. Only 12 packs left.', 'fashion',
+   45, 599, 329, 12, 1, 1500, now() + interval '5 hours', 12.8990, 80.0950, 11),
+  ('Anna Supermarket', 'Alphonso Mangoes — 500g', 'Tree-ripened Alphonso mangoes. Last batch this season.', 'grocery',
+   30, 200, 140, 30, 10, 2000, now() + interval '3 hours', 12.9060, 80.1035, 17);
+
 
 -- 6. AUTO-EXPIRE (optional — run as a cron or just call periodically)
 -- UPDATE deals SET status = 'sold_out' WHERE status = 'active' AND units_claimed >= units_available;
