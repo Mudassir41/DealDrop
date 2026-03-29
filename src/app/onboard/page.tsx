@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+
 
 const PERSONAS = [
   { id: "student", emoji: "🎓", label: "Student", desc: "Hostel life, budget eats, tech deals", color: "bg-blue-50 border-blue-200" },
@@ -23,6 +25,7 @@ const CATEGORIES = [
 export default function OnboardPage() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [loading, setLoading] = useState(false);
   const [selectedPersona, setSelectedPersona] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
@@ -32,28 +35,55 @@ export default function OnboardPage() {
     );
   };
 
+  const syncToSupabase = async (profile: any, loc: any) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await fetch("/api/profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            persona: profile.persona,
+            categories: profile.categories,
+            latitude: loc?.lat,
+            longitude: loc?.lng,
+          }),
+        });
+      }
+    } catch (e) {
+      console.warn("Could not sync profile to cloud, remaining in local mode.");
+    }
+  };
+
   const handleComplete = () => {
-    // Save to localStorage
+    setLoading(true);
+    const finalCategories = selectedCategories.length > 0 ? selectedCategories : CATEGORIES.map(c => c.id);
+    
+    // 1. Initial Local Save
     const profile = {
       persona: selectedPersona,
-      categories: selectedCategories.length > 0 ? selectedCategories : CATEGORIES.map(c => c.id),
+      categories: finalCategories,
       onboarded: true,
       created_at: new Date().toISOString(),
     };
     localStorage.setItem("dealdrop_profile", JSON.stringify(profile));
 
-    // Request location permission then redirect
+    // 2. Location + Deep Sync
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
+        async (pos) => {
           const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           localStorage.setItem("dealdrop_location", JSON.stringify(loc));
+          await syncToSupabase(profile, loc);
           router.push("/dashboard");
         },
-        () => router.push("/dashboard")
+        async () => {
+          await syncToSupabase(profile, null);
+          router.push("/dashboard");
+        }
       );
     } else {
-      router.push("/dashboard");
+      syncToSupabase(profile, null).then(() => router.push("/dashboard"));
     }
   };
 
@@ -174,9 +204,10 @@ export default function OnboardPage() {
 
             <button
               onClick={handleComplete}
-              className="w-full bg-brand-orange text-white py-4 rounded-xl font-semibold text-base hover:bg-brand-orange-dark transition-colors shadow-lg shadow-brand-orange/20 mb-4"
+              disabled={loading}
+              className="w-full bg-brand-orange text-white py-4 rounded-xl font-semibold text-base hover:bg-brand-orange-dark transition-colors shadow-lg shadow-brand-orange/20 mb-4 disabled:opacity-50"
             >
-              📍 Enable Location & Start
+              {loading ? "Syncing..." : "📍 Enable Location & Start"}
             </button>
 
             <a

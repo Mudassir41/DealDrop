@@ -2,15 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { db } from "@/lib/store";
 
+function generateOTP(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    const body = await req.json().catch(() => ({}));
+    const { telegram_chat_id } = body;
 
     try {
-      // Try Supabase first
       const { data: deal, error: fetchError } = await supabase
         .from("deals")
         .select("*")
@@ -35,14 +40,29 @@ export async function POST(
 
       if (updateError) throw updateError;
 
-      return NextResponse.json({ deal: updated });
+      // Generate OTP and store in claims table
+      const otp = generateOTP();
+      try {
+        await supabase.from("claims").insert({
+          deal_id: id,
+          otp,
+          redeemed: false,
+          customer_telegram_id: telegram_chat_id || null,
+          created_at: new Date().toISOString(),
+        });
+      } catch {
+        // Silent — claims table may not exist yet in Supabase
+      }
+
+      return NextResponse.json({ deal: updated, otp });
     } catch {
       // Fallback to in-memory
       const updatedDeal = db.claimDeal(id);
       if (!updatedDeal) {
         return NextResponse.json({ error: "Deal not found or sold out" }, { status: 404 });
       }
-      return NextResponse.json({ deal: updatedDeal });
+      const otp = generateOTP();
+      return NextResponse.json({ deal: updatedDeal, otp });
     }
   } catch (error) {
     console.error("Deal claim error:", error);

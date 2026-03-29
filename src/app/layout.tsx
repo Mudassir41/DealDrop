@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AIChatBar from "@/components/AIChatBar";
 
 export const metadata: Metadata = {
   title: "DealDrop — Hyperlocal Flash Sales Near You",
@@ -21,8 +22,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased">
-        {children}
+      <body className="antialiased min-h-screen bg-gray-50 flex flex-col">
+        <main className="flex-1 pb-24">
+          {children}
+        </main>
+        <AIChatBar />
         <script
           dangerouslySetInnerHTML={{
             __html: `

@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS deals (
 -- 3. CUSTOMERS (Telegram subscribers + web users)
 CREATE TABLE IF NOT EXISTS customers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   telegram_chat_id BIGINT UNIQUE,
   persona TEXT DEFAULT 'hunter',
   category_prefs TEXT[] DEFAULT '{}',
@@ -67,6 +68,8 @@ CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   deal_id UUID REFERENCES deals(id) ON DELETE CASCADE,
   customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
   type TEXT DEFAULT 'deal_alert',
   read BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
@@ -81,6 +84,17 @@ CREATE TABLE IF NOT EXISTS reviews (
   rating INT CHECK (rating >= 1 AND rating <= 5),
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- 6. CLAIMS (OTP-based redemption)
+CREATE TABLE IF NOT EXISTS claims (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  deal_id UUID REFERENCES deals(id) ON DELETE CASCADE,
+  otp TEXT NOT NULL UNIQUE,
+  redeemed BOOLEAN DEFAULT false,
+  customer_telegram_id BIGINT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 
 -- 6. SEED REAL-TIME STORE DATA (REAL CHENNAI & REGIONAL RETAILERS)
 WITH store_data AS (

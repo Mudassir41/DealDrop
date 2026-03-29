@@ -79,6 +79,7 @@ export default function DashboardPage() {
   const [showMap, setShowMap] = useState(true);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [claiming, setClaiming] = useState<string | null>(null);
+  // claimedDealQr holds the OTP string (used for both QR + manual display)
   const [claimedDealQr, setClaimedDealQr] = useState<string | null>(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [locationLabel, setLocationLabel] = useState("T. Nagar");
@@ -108,7 +109,7 @@ export default function DashboardPage() {
       return;
     }
     const parsed = JSON.parse(saved);
-    if (typeof parsed.drop_points === 'undefined') parsed.drop_points = 150; // Mock initial points for demo
+    if (typeof parsed.drop_points === "undefined") parsed.drop_points = 150;
     setProfile(parsed);
 
     const savedLoc = localStorage.getItem("dealdrop_location");
@@ -144,7 +145,7 @@ export default function DashboardPage() {
         categories: profile.categories.join(","),
         lat: location.lat.toString(),
         lng: location.lng.toString(),
-        radius: "10000",
+        radius: "20000", // 20km to cover regional stores (Salem, Pondy, Bangalore)
         tab: activeTab,
       });
       const res = await fetch(`/api/feed?${params}`);
@@ -165,15 +166,28 @@ export default function DashboardPage() {
 
   const claimDeal = async (dealId: string) => {
     setClaiming(dealId);
-    // Earning mock points purely for claiming a deal on UI
     setProfile(prev => prev ? { ...prev, drop_points: (prev.drop_points || 0) + 10 } : prev);
     try {
-      const identifier = profile?.telegram_chat_id || profile?.persona || "anon";
-      setClaimedDealQr(`${dealId}-${identifier}-${Date.now().toString().slice(-4)}`);
+      // Try to get a real OTP from the server
+      const res = await fetch(`/api/deals/${dealId}/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telegram_chat_id: profile?.telegram_chat_id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.otp) {
+        setClaimedDealQr(data.otp);
+      } else {
+        // Fallback: generate a client-side claim code for demo
+        const identifier = profile?.telegram_chat_id || profile?.persona || "anon";
+        setClaimedDealQr(`${dealId.slice(0, 8)}-${identifier}-${Date.now().toString().slice(-4)}`);
+      }
       setRatingSubmitted(false);
       fetchFeed();
     } catch {
-      // silent
+      // Fallback for demo resilience
+      const identifier = profile?.telegram_chat_id || profile?.persona || "anon";
+      setClaimedDealQr(`${dealId.slice(0, 8)}-${identifier}-${Date.now().toString().slice(-4)}`);
     } finally {
       setClaiming(null);
     }
@@ -335,125 +349,125 @@ export default function DashboardPage() {
       {/* Content — responsive: side-by-side on desktop */}
       <div className="max-w-6xl mx-auto flex flex-col lg:flex-row lg:h-[calc(100vh-120px)]">
         {/* Map — always visible on desktop, toggleable on mobile */}
-        {(showMap || typeof window !== 'undefined') && location && (
-          <div className={`${showMap ? 'block' : 'hidden lg:block'} w-full lg:flex-1 h-[250px] lg:h-full p-4`}>
+        {(showMap || typeof window !== "undefined") && location && (
+          <div className={`${showMap ? "block" : "hidden lg:block"} w-full lg:flex-1 h-[250px] lg:h-full p-4`}>
             <DealMap deals={deals} center={location} onDealClick={setSelectedDeal} onMapClick={handleMapClick} />
           </div>
         )}
 
         {/* Deal List */}
         <div className="w-full lg:w-[420px] lg:border-l lg:border-gray-100 overflow-y-auto p-4">
-        {/* Greeting */}
-        {!pushEnabled && (
-          <div className="mb-4 bg-orange-50 border border-brand-orange/20 rounded-xl p-3 flex items-center justify-between">
-            <div className="text-xs text-brand-navy">
-              <strong>Enable Alerts</strong> to instantly know when nearby deals drop.
-            </div>
-            <button onClick={enablePush} className="ml-3 text-[10px] bg-brand-orange text-white px-3 py-1.5 rounded-lg font-bold whitespace-nowrap">
-              Turn On
-            </button>
-          </div>
-        )}
-        <div className="mb-4">
-          <h1 className="text-xl font-bold text-brand-navy">
-            {activeTab === "foryou" ? `${personaInfo.emoji} Deals for you` :
-             activeTab === "nearby" ? "📍 Closest deals" :
-             activeTab === "trending" ? "🔥 Hot right now" :
-             "⏰ Expiring soon"}
-          </h1>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {deals.length} deal{deals.length !== 1 ? "s" : ""} near {locationLabel} · Refreshes every 15s
-          </p>
-        </div>
-
-        {/* Deal Feed */}
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white rounded-2xl p-5 animate-pulse border border-gray-100">
-                <div className="h-3 bg-gray-200 rounded w-1/4 mb-3" />
-                <div className="h-4 bg-gray-200 rounded w-2/3 mb-4" />
-                <div className="h-3 bg-gray-200 rounded w-full mb-2" />
-                <div className="h-3 bg-gray-200 rounded w-3/4" />
+          {/* Push enable prompt */}
+          {!pushEnabled && (
+            <div className="mb-4 bg-orange-50 border border-brand-orange/20 rounded-xl p-3 flex items-center justify-between">
+              <div className="text-xs text-brand-navy">
+                <strong>Enable Alerts</strong> to instantly know when nearby deals drop.
               </div>
-            ))}
+              <button onClick={enablePush} className="ml-3 text-[10px] bg-brand-orange text-white px-3 py-1.5 rounded-lg font-bold whitespace-nowrap">
+                Turn On
+              </button>
+            </div>
+          )}
+          <div className="mb-4">
+            <h1 className="text-xl font-bold text-brand-navy">
+              {activeTab === "foryou" ? `${personaInfo.emoji} Deals for you` :
+               activeTab === "nearby" ? "📍 Closest deals" :
+               activeTab === "trending" ? "🔥 Hot right now" :
+               "⏰ Expiring soon"}
+            </h1>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {deals.length} deal{deals.length !== 1 ? "s" : ""} near {locationLabel} · Refreshes every 15s
+            </p>
           </div>
-        ) : deals.length === 0 ? (
-          <div className="text-center py-16">
-            <span className="text-5xl block mb-4">🔍</span>
-            <h3 className="text-lg font-semibold text-brand-navy mb-2">No deals yet</h3>
-            <p className="text-sm text-gray-500 mb-4">No active deals match your preferences right now.</p>
-            <a
-              href="https://t.me/dealdrop_alertbot"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-[#0088cc] font-medium hover:text-[#0077b5]"
-            >
-              Get instant alerts on Telegram →
-            </a>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {deals.map((deal, idx) => {
-              const remaining = deal.units_available - deal.units_claimed;
-              const urgency = remaining <= 5;
-              const salePrice = deal.original_price
-                ? Math.round(deal.original_price * (1 - deal.discount_pct / 100))
-                : null;
 
-              return (
-                <div
-                  key={deal.id}
-                  className="deal-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer"
-                  style={{ animationDelay: `${idx * 50}ms` }}
-                  onClick={() => setSelectedDeal(deal)}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                        {deal.store_name}
-                        {deal.stores?.verified && (
-                          <span className="text-blue-500" title="Verified Retailer">
-                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                            </svg>
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="text-base font-semibold text-brand-navy">{deal.product_name}</h3>
-                    </div>
-                    <span className="bg-brand-orange text-white px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap ml-3">
-                      {deal.discount_pct}% OFF
-                    </span>
-                  </div>
-
-                  <p className="text-sm text-gray-500 mb-3 line-clamp-1">{deal.description}</p>
-
-                  {salePrice && (
-                    <div className="flex items-baseline gap-2 mb-3">
-                      <span className="text-lg font-bold text-brand-navy">₹{salePrice}</span>
-                      <span className="text-sm text-gray-400 line-through">₹{deal.original_price}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 pt-3 border-t border-gray-50">
-                    <span className={`text-xs px-2 py-1 rounded-full ${urgency ? "bg-red-50 text-red-500 urgency-pulse" : "bg-gray-50 text-gray-500"}`}>
-                      📦 {remaining} left
-                    </span>
-                    <span className="text-xs text-gray-400">⏱ {timeRemaining(deal.expires_at)}</span>
-                    <span className="text-xs text-gray-400">👀 {deal.live_viewers}</span>
-                    {deal.distance !== undefined && (
-                      <span className="text-xs text-gray-400 ml-auto">
-                        📍 {deal.distance >= 1000 ? `${(deal.distance / 1000).toFixed(1)}km` : `${deal.distance}m`}
-                      </span>
-                    )}
-                  </div>
+          {/* Deal Feed */}
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-2xl p-5 animate-pulse border border-gray-100">
+                  <div className="h-3 bg-gray-200 rounded w-1/4 mb-3" />
+                  <div className="h-4 bg-gray-200 rounded w-2/3 mb-4" />
+                  <div className="h-3 bg-gray-200 rounded w-full mb-2" />
+                  <div className="h-3 bg-gray-200 rounded w-3/4" />
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>{/* close deal list sidebar */}
+              ))}
+            </div>
+          ) : deals.length === 0 ? (
+            <div className="text-center py-16">
+              <span className="text-5xl block mb-4">🔍</span>
+              <h3 className="text-lg font-semibold text-brand-navy mb-2">No deals yet</h3>
+              <p className="text-sm text-gray-500 mb-4">No active deals match your preferences right now.</p>
+              <a
+                href="https://t.me/dealdrop_alertbot"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-[#0088cc] font-medium hover:text-[#0077b5]"
+              >
+                Get instant alerts on Telegram →
+              </a>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {deals.map((deal, idx) => {
+                const remaining = deal.units_available - deal.units_claimed;
+                const urgency = remaining <= 5;
+                const salePrice = deal.original_price
+                  ? Math.round(deal.original_price * (1 - deal.discount_pct / 100))
+                  : null;
+
+                return (
+                  <div
+                    key={deal.id}
+                    className="deal-card bg-white rounded-2xl border border-gray-100 p-5 cursor-pointer"
+                    style={{ animationDelay: `${idx * 50}ms` }}
+                    onClick={() => setSelectedDeal(deal)}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          {deal.store_name}
+                          {deal.stores?.verified && (
+                            <span className="text-blue-500" title="Verified Retailer">
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                              </svg>
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-base font-semibold text-brand-navy">{deal.product_name}</h3>
+                      </div>
+                      <span className="bg-brand-orange text-white px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap ml-3">
+                        {deal.discount_pct}% OFF
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-gray-500 mb-3 line-clamp-1">{deal.description}</p>
+
+                    {salePrice && (
+                      <div className="flex items-baseline gap-2 mb-3">
+                        <span className="text-lg font-bold text-brand-navy">₹{salePrice}</span>
+                        <span className="text-sm text-gray-400 line-through">₹{deal.original_price}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-3 pt-3 border-t border-gray-50">
+                      <span className={`text-xs px-2 py-1 rounded-full ${urgency ? "bg-red-50 text-red-500 urgency-pulse" : "bg-gray-50 text-gray-500"}`}>
+                        📦 {remaining} left
+                      </span>
+                      <span className="text-xs text-gray-400">⏱ {timeRemaining(deal.expires_at)}</span>
+                      <span className="text-xs text-gray-400">👀 {deal.live_viewers}</span>
+                      {deal.distance !== undefined && (
+                        <span className="text-xs text-gray-400 ml-auto">
+                          📍 {deal.distance >= 1000 ? `${(deal.distance / 1000).toFixed(1)}km` : `${deal.distance}m`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>{/* close deal list sidebar */}
       </div>{/* close flex container */}
 
       {/* Deal Detail Modal */}
@@ -470,25 +484,40 @@ export default function DashboardPage() {
 
             {claimedDealQr ? (
               <div className="text-center py-4">
-                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl">✅</span>
+                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-3xl">🎟️</span>
                 </div>
-                <h2 className="text-2xl font-bold text-brand-navy mb-2">Deal Claimed!</h2>
-                <p className="text-sm text-gray-500 mb-6">Show this QR code at the store to redeem your discount before the deal expires.</p>
-                
-                <div className="bg-white p-4 inline-block rounded-2xl shadow-sm border border-gray-100 mb-6 mx-auto">
-                  <QRCode
-                    value={claimedDealQr}
-                    size={200}
-                    level="H"
-                    fgColor="#111827"
-                  />
+                <h2 className="text-xl font-bold text-brand-navy mb-1">Deal Claimed!</h2>
+                <p className="text-sm text-gray-400 mb-5">Show this code at the store counter to redeem</p>
+
+                {/* QR Code + OTP Display */}
+                <div className="flex flex-col items-center gap-4 mb-5">
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                    <QRCode
+                      value={claimedDealQr}
+                      size={160}
+                      level="H"
+                      fgColor="#111827"
+                    />
+                  </div>
+                  <div className="w-full bg-brand-navy rounded-2xl p-4 text-center">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-widest mb-1">Manual Code</div>
+                    <div className="text-2xl font-black tracking-[0.2em] text-white font-mono">
+                      {claimedDealQr.length <= 10
+                        ? claimedDealQr
+                        : claimedDealQr.slice(-6)} {/* Show last 6 chars if it's a full claim ID */}
+                    </div>
+                  </div>
                 </div>
-                
-                <p className="text-xs font-mono text-gray-400 mb-6">ID: {claimedDealQr}</p>
-                
+
+                {/* Drop Points earned */}
+                <div className="flex items-center justify-center gap-2 text-sm font-medium text-emerald-600 bg-emerald-50 py-2 rounded-xl mb-5">
+                  🪙 +10 Drop Points earned!
+                </div>
+
+                {/* Rating */}
                 {!ratingSubmitted ? (
-                  <div className="mb-6">
+                  <div className="mb-5">
                     <p className="text-sm font-medium text-brand-navy mb-2">Rate the Store</p>
                     <div className="flex justify-center gap-2">
                       {[1, 2, 3, 4, 5].map((star) => (
@@ -500,7 +529,7 @@ export default function DashboardPage() {
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({
                                 deal_id: selectedDeal!.id,
-                                store_id: selectedDeal!.id, // Demo fallback: deal_id as store_id if real store_id not exposed
+                                store_id: selectedDeal!.id,
                                 reviewer_type: "buyer",
                                 rating: star
                               })
@@ -515,11 +544,11 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mb-6 text-sm font-medium text-emerald-600 bg-emerald-50 py-2 rounded-xl">
-                    Thank you for rating!
+                  <div className="mb-5 text-sm font-medium text-emerald-600 bg-emerald-50 py-2 rounded-xl text-center">
+                    Thank you for rating! 🙏
                   </div>
                 )}
-                
+
                 <button
                   onClick={() => { setSelectedDeal(null); setClaimedDealQr(null); }}
                   className="w-full bg-brand-orange text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-brand-orange-dark transition-colors shadow-sm"
@@ -537,62 +566,62 @@ export default function DashboardPage() {
                 <p className="text-sm text-brand-orange font-medium mb-4">{selectedDeal.store_name}</p>
                 <p className="text-sm text-gray-500 mb-6">{selectedDeal.description}</p>
 
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              <div className="bg-brand-cream rounded-xl p-3 text-center">
-                <div className="text-lg font-bold text-brand-navy">{selectedDeal.units_available - selectedDeal.units_claimed}</div>
-                <div className="text-[10px] text-gray-500">Remaining</div>
-              </div>
-              <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                <div className="text-lg font-bold text-brand-emerald">{selectedDeal.live_viewers}</div>
-                <div className="text-[10px] text-gray-500">Viewing</div>
-              </div>
-              <div className="bg-blue-50 rounded-xl p-3 text-center">
-                <div className="text-lg font-bold text-blue-600">{timeRemaining(selectedDeal.expires_at)}</div>
-                <div className="text-[10px] text-gray-500">Left</div>
-              </div>
-            </div>
+                <div className="grid grid-cols-3 gap-3 mb-6">
+                  <div className="bg-brand-cream rounded-xl p-3 text-center">
+                    <div className="text-lg font-bold text-brand-navy">{selectedDeal.units_available - selectedDeal.units_claimed}</div>
+                    <div className="text-[10px] text-gray-500">Remaining</div>
+                  </div>
+                  <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                    <div className="text-lg font-bold text-brand-emerald">{selectedDeal.live_viewers}</div>
+                    <div className="text-[10px] text-gray-500">Viewing</div>
+                  </div>
+                  <div className="bg-blue-50 rounded-xl p-3 text-center">
+                    <div className="text-lg font-bold text-blue-600">{timeRemaining(selectedDeal.expires_at)}</div>
+                    <div className="text-[10px] text-gray-500">Left</div>
+                  </div>
+                </div>
 
-            {selectedDeal.original_price && (
-              <div className="flex items-baseline gap-2 mb-6">
-                <span className="text-3xl font-bold text-brand-navy">
-                  ₹{Math.round(selectedDeal.original_price * (1 - selectedDeal.discount_pct / 100))}
-                </span>
-                <span className="text-lg text-gray-400 line-through">₹{selectedDeal.original_price}</span>
-              </div>
-            )}
+                {selectedDeal.original_price && (
+                  <div className="flex items-baseline gap-2 mb-6">
+                    <span className="text-3xl font-bold text-brand-navy">
+                      ₹{Math.round(selectedDeal.original_price * (1 - selectedDeal.discount_pct / 100))}
+                    </span>
+                    <span className="text-lg text-gray-400 line-through">₹{selectedDeal.original_price}</span>
+                  </div>
+                )}
 
-            <button
-              onClick={() => claimDeal(selectedDeal.id)}
-              disabled={claiming === selectedDeal.id}
-              className="w-full bg-brand-orange text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-brand-orange-dark transition-colors shadow-lg shadow-brand-orange/20 disabled:opacity-50 mb-3"
-            >
-              {claiming === selectedDeal.id ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Claiming...
-                </span>
-              ) : (
-                "✅ Claim Deal"
-              )}
-            </button>
+                <button
+                  onClick={() => claimDeal(selectedDeal.id)}
+                  disabled={claiming === selectedDeal.id}
+                  className="w-full bg-brand-orange text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-brand-orange-dark transition-colors shadow-lg shadow-brand-orange/20 disabled:opacity-50 mb-3"
+                >
+                  {claiming === selectedDeal.id ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Claiming...
+                    </span>
+                  ) : (
+                    "✅ Claim Deal"
+                  )}
+                </button>
 
-            <div className="flex gap-3">
-              <button
-                className="flex-1 text-center py-3 bg-gray-50 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
-                onClick={() => alert("Chat feature is coming in Phase 2!")}
-              >
-                💬 Message Store
-              </button>
-              <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${selectedDeal.latitude},${selectedDeal.longitude}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 text-center py-3 bg-orange-50 rounded-xl text-sm font-semibold text-brand-orange hover:bg-orange-100 transition-colors"
-              >
-                📍 Directions
-              </a>
-            </div>
-            </>
+                <div className="flex gap-3">
+                  <button
+                    className="flex-1 text-center py-3 bg-gray-50 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
+                    onClick={() => alert("Chat feature is coming in Phase 2!")}
+                  >
+                    💬 Message Store
+                  </button>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${selectedDeal.latitude},${selectedDeal.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 text-center py-3 bg-orange-50 rounded-xl text-sm font-semibold text-brand-orange hover:bg-orange-100 transition-colors"
+                  >
+                    📍 Directions
+                  </a>
+                </div>
+              </>
             )}
           </div>
         </div>

@@ -1,81 +1,84 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Html5QrcodeScanner } from "html5-qrcode";
+import { supabase } from "@/lib/supabase";
 
-export default function RetailerQRScanner() {
+export default function RetailerScanner() {
+  const [view, setView] = useState<"camera" | "manual">("camera");
+  const [mode, setMode] = useState<"input" | "success">("input");
+  const [otp, setOtp] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
   const [scanResult, setScanResult] = useState<any | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [scannerReady, setScannerReady] = useState(false);
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
-    // html5-qrcode scanner requires the DOM element to exist
-    setScannerReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!scannerReady) return;
-
-    const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0,
-      supportedScanTypes: [0] // QR_CODE
-    };
-
-    const scanner = new Html5QrcodeScanner("qr-reader", config, false);
-
-    scanner.render(
-      async (decodedText: string) => {
-        // Pause scanning to process
-        scanner.pause(true);
-        setIsProcessing(true);
-        setScanError(null);
-
-        try {
-          // Expected format: dealId-chatId-timestamp
-          const parts = decodedText.split("-");
-          if (parts.length < 3) throw new Error("Unrecognized QR code format.");
-
-          const dealId = parts[0];
-
-          const res = await fetch(`/api/deals/${dealId}/redeem`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ qr_code: decodedText })
-          });
-
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "Failed to redeem deal");
-
-          setScanResult(data);
-        } catch (err: any) {
-          setScanError(err.message || "Invalid QR code read.");
-          // Resume scanning after 3s on error
-          setTimeout(() => {
-            setScanError(null);
-            scanner.resume();
-          }, 3000);
-        } finally {
-          setIsProcessing(false);
-        }
-      },
-      (error) => {
-        // continuous scanning errors, safe to ignore
-      }
-    );
+    if (view === "camera" && mode === "input") {
+      scannerRef.current = new Html5QrcodeScanner(
+        "reader",
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        /* verbose= */ false
+      );
+      scannerRef.current.render(onScanSuccess, onScanFailure);
+    }
 
     return () => {
-      scanner.clear().catch(console.error);
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(error => console.error("Failed to clear scanner", error));
+      }
     };
-  }, [scannerReady]);
+  }, [view, mode]);
+
+  function onScanSuccess(decodedText: string) {
+    if (!isProcessing) {
+      verifyCode(decodedText);
+    }
+  }
+
+  function onScanFailure(error: any) {
+    // console.warn(`Code scan error = ${error}`);
+  }
+
+  const verifyCode = async (code: string) => {
+    if (!code || code.length < 4) return;
+    setIsProcessing(true);
+    setScanError(null);
+
+    // Stop scanner while processing to avoid double scans
+    if (scannerRef.current) {
+      scannerRef.current.pause(true);
+    }
+
+    try {
+      const res = await fetch(`/api/redeem-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ otp: code }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Invalid Code");
+      setScanResult(data);
+      setMode("success");
+    } catch (err: any) {
+      setScanError(err.message || "Invalid code. Please try again.");
+      if (scannerRef.current) {
+        scannerRef.current.resume();
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleOtpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    verifyCode(otp);
+  };
 
   return (
     <div className="min-h-screen bg-brand-navy flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
-        
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <Link href="/dealer/dashboard" className="text-gray-400 hover:text-white flex items-center gap-2">
@@ -86,89 +89,110 @@ export default function RetailerQRScanner() {
           </div>
         </div>
 
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-white mb-2">Scan Customer QR</h1>
-          <p className="text-gray-400 text-sm">Align the QR code within the frame to redeem the deal and award Drop Points.</p>
-        </div>
-
-        {/* Scanner or Result */}
-        <div className="bg-white rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-          
-          {scanResult ? (
-            <div className="text-center py-6 animate-fade-in">
-              <div className="w-20 h-20 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">
-                ✅
-              </div>
-              <h2 className="text-2xl font-bold text-brand-navy mb-2">Success!</h2>
-              <div className="bg-gray-50 rounded-xl p-4 mb-4 text-left border border-gray-100">
-                <div className="text-sm text-gray-500 uppercase tracking-wider mb-1">Redeemed Item</div>
-                <div className="font-semibold text-brand-navy text-lg">{scanResult.deal.product}</div>
-                <div className="text-brand-orange font-bold text-sm">{scanResult.deal.discount}% OFF applying</div>
-              </div>
-
-              {scanResult.points_awarded > 0 && (
-                <div className="flex items-center justify-center gap-2 text-sm font-medium text-emerald-600 bg-emerald-50 py-2 rounded-lg mb-6">
-                  ✨ Customer earned +{scanResult.points_awarded} Drop Points
-                </div>
+        {mode === "success" && scanResult ? (
+          <div className="bg-white rounded-3xl p-8 shadow-2xl text-center animate-fade-in">
+            <div className="w-20 h-20 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">
+              ✅
+            </div>
+            <h2 className="text-2xl font-bold text-brand-navy mb-2">Verified!</h2>
+            <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left border border-gray-100">
+              <div className="text-xs text-gray-400 uppercase tracking-wider mb-1">Redeemed Deal</div>
+              <div className="font-bold text-brand-navy text-lg">{scanResult.product_name}</div>
+              <div className="text-brand-orange font-semibold text-sm">{scanResult.discount_pct}% OFF</div>
+              {scanResult.store_name && (
+                <div className="text-xs text-gray-500 mt-1">@ {scanResult.store_name}</div>
               )}
-
-              <button 
-                onClick={() => {
-                  setScanResult(null);
-                  window.location.reload(); // Hard reset html5-qrcode
-                }}
-                className="w-full bg-brand-navy text-white py-3.5 rounded-xl font-semibold hover:bg-gray-800 transition-colors"
+            </div>
+            <button
+              onClick={() => { setScanResult(null); setOtp(""); setMode("input"); setScanError(null); }}
+              className="w-full bg-brand-navy text-white py-3.5 rounded-xl font-semibold hover:bg-gray-800 transition-colors"
+            >
+              Verify Next Deal
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white rounded-3xl overflow-hidden shadow-2xl">
+            {/* Tabs */}
+            <div className="flex border-b border-gray-100">
+              <button
+                onClick={() => setView("camera")}
+                className={`flex-1 py-4 text-sm font-bold transition-colors ${view === "camera" ? "text-brand-orange border-b-2 border-brand-orange bg-brand-orange/5" : "text-gray-400 hover:text-brand-navy"}`}
               >
-                Scan Next Customer
+                📸 QR Scanner
+              </button>
+              <button
+                onClick={() => setView("manual")}
+                className={`flex-1 py-4 text-sm font-bold transition-colors ${view === "manual" ? "text-brand-orange border-b-2 border-brand-orange bg-brand-orange/5" : "text-gray-400 hover:text-brand-navy"}`}
+              >
+                ⌨️ Manual Code
               </button>
             </div>
-          ) : (
-            <>
-              {isProcessing && (
-                <div className="absolute inset-0 bg-white/90 z-10 flex flex-col items-center justify-center backdrop-blur-sm">
-                  <div className="w-8 h-8 border-4 border-brand-orange border-t-transparent rounded-full animate-spin mb-4" />
-                  <p className="font-medium text-brand-navy">Verifying deal...</p>
-                </div>
-              )}
-              
-              <div id="qr-reader" className="w-full overflow-hidden rounded-xl border-0 !border-none" />
-              
-              {scanError && (
-                <div className="mt-4 bg-red-50 text-red-600 text-sm font-medium p-3 rounded-lg text-center animate-shake">
-                  {scanError}
-                </div>
-              )}
-            </>
-          )}
 
-        </div>
+            <div className="p-8">
+              {view === "camera" ? (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h1 className="text-xl font-bold text-brand-navy mb-1">Scan QR Code</h1>
+                    <p className="text-gray-400 text-xs">Point camera at the customer's DealDrop screen</p>
+                  </div>
+                  
+                  <div id="reader" className="w-full rounded-2xl overflow-hidden border-4 border-gray-50" />
+                  
+                  {isProcessing && (
+                    <div className="mt-4 text-center text-brand-orange font-bold animate-pulse">
+                      Processing Scan...
+                    </div>
+                  )}
+
+                  {scanError && (
+                    <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl p-3 text-center">
+                      {scanError}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h1 className="text-xl font-bold text-brand-navy mb-1">Enter Manual Code</h1>
+                    <p className="text-gray-400 text-xs">Type the 6-digit code shown on the customer's phone</p>
+                  </div>
+
+                  <form onSubmit={handleOtpSubmit} className="space-y-4">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      autoFocus
+                      placeholder="• • • • • •"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className="w-full text-center text-3xl font-bold tracking-[0.5em] py-4 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-brand-orange transition-colors text-brand-navy"
+                    />
+
+                    {scanError && (
+                      <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl p-3 text-center">
+                        {scanError}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={otp.length < 4 || isProcessing}
+                      className="w-full bg-brand-orange text-white py-4 rounded-xl font-bold disabled:opacity-40 hover:bg-brand-orange-dark transition-colors flex items-center justify-center gap-2"
+                    >
+                      {isProcessing ? (
+                        <><div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Verifying...</>
+                      ) : (
+                        <>✓ Verify Deal</>
+                      )}
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Override html5-qrcode default ugly styles */}
-      <style dangerouslySetInnerHTML={{__html: `
-        #qr-reader { border: none !important; }
-        #qr-reader__scan_region { background: #000; border-radius: 12px; overflow: hidden; }
-        #qr-reader__dashboard_section_csr span { display: none !important; }
-        #qr-reader__dashboard_section_swaplink { display: none !important; }
-        #html5-qrcode-button-camera-permission, #html5-qrcode-button-camera-start, #html5-qrcode-button-camera-stop {
-          background: #FF6B35 !important;
-          color: white !important;
-          border: none !important;
-          border-radius: 8px !important;
-          padding: 8px 16px !important;
-          font-weight: 600 !important;
-          margin-top: 10px !important;
-          cursor: pointer !important;
-        }
-        #qr-reader__status_span { display: none !important; }
-        #qr-reader__dashboard_section_csr select {
-          padding: 8px;
-          border-radius: 8px;
-          border: 1px solid #e5e7eb;
-          margin-bottom: 10px;
-          width: 100%;
-        }
-      `}} />
     </div>
   );
 }

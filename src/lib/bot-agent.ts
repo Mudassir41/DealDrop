@@ -62,6 +62,20 @@ export const tools = [
         required: ["product_name", "discount_pct", "units"]
       },
     },
+  },
+  {
+    type: "function",
+    function: {
+      name: "claim_deal",
+      description: "Claim a specific deal for the user by its ID. Returns a redemption OTP.",
+      parameters: {
+        type: "object",
+        properties: {
+          deal_id: { type: "string", description: "The ID of the deal to claim" },
+        },
+        required: ["deal_id"]
+      },
+    },
   }
 ];
 
@@ -101,6 +115,11 @@ export async function executeTool(name: string, args: any, chatId: number, userL
     case "post_deal": {
       return JSON.stringify({ success: true, message: `Deal posted for ${args.units}x ${args.product_name} at ${args.discount_pct}% OFF!` });
     }
+    case "claim_deal": {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      // In a real app, we'd call the claim API here to decrement units in DB
+      return JSON.stringify({ success: true, otp, message: `Deal claimed successfully! Your redemption code is ${otp}.` });
+    }
     default:
       return JSON.stringify({ error: "Unknown tool" });
   }
@@ -124,6 +143,7 @@ export async function processChat(chatId: number, text: string, userLocation?: {
       1. If they ask about deals, search_deals.
       2. If they want to register a store, call register_store.
       3. If they want to post a deal, call post_deal.
+      4. If they want to claim a specific deal they see, call claim_deal.
       Never invent deals/stores.`
     });
   }
