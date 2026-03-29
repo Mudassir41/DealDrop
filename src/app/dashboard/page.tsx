@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import QRCode from "react-qr-code";
 
 const DealMap = dynamic(() => import("@/components/DealMap"), { ssr: false });
 
@@ -73,6 +74,7 @@ export default function DashboardPage() {
   const [showMap, setShowMap] = useState(true);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [claimedDealQr, setClaimedDealQr] = useState<string | null>(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [locationLabel, setLocationLabel] = useState("Vandalur");
 
@@ -141,12 +143,12 @@ export default function DashboardPage() {
     setClaiming(dealId);
     try {
       await fetch(`/api/deals/${dealId}/claim`, { method: "POST" });
+      setClaimedDealQr(`${dealId}-${profile?.persona}-${Date.now().toString().slice(-4)}`);
       fetchFeed();
     } catch {
       // silent
     } finally {
       setClaiming(null);
-      setSelectedDeal(null);
     }
   };
 
@@ -349,22 +351,50 @@ export default function DashboardPage() {
       {/* Deal Detail Modal */}
       {selectedDeal && (
         <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedDeal(null)} />
+          <div className="absolute inset-0 bg-black/30" onClick={() => { setSelectedDeal(null); setClaimedDealQr(null); }} />
           <div className="relative bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 animate-slide-up">
             <button
-              onClick={() => setSelectedDeal(null)}
+              onClick={() => { setSelectedDeal(null); setClaimedDealQr(null); }}
               className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600"
             >
               ✕
             </button>
 
-            <span className="bg-brand-orange text-white px-4 py-1.5 rounded-full text-sm font-bold inline-block mb-4">
-              {selectedDeal.discount_pct}% OFF
-            </span>
+            {claimedDealQr ? (
+              <div className="text-center py-4">
+                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">✅</span>
+                </div>
+                <h2 className="text-2xl font-bold text-brand-navy mb-2">Deal Claimed!</h2>
+                <p className="text-sm text-gray-500 mb-6">Show this QR code at the store to redeem your discount before the deal expires.</p>
+                
+                <div className="bg-white p-4 inline-block rounded-2xl shadow-sm border border-gray-100 mb-6 mx-auto">
+                  <QRCode
+                    value={claimedDealQr}
+                    size={200}
+                    level="H"
+                    fgColor="#111827"
+                  />
+                </div>
+                
+                <p className="text-xs font-mono text-gray-400 mb-6">ID: {claimedDealQr}</p>
+                
+                <button
+                  onClick={() => { setSelectedDeal(null); setClaimedDealQr(null); }}
+                  className="w-full bg-brand-orange text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-brand-orange-dark transition-colors shadow-sm"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <span className="bg-brand-orange text-white px-4 py-1.5 rounded-full text-sm font-bold inline-block mb-4">
+                  {selectedDeal.discount_pct}% OFF
+                </span>
 
-            <h2 className="text-2xl font-bold text-brand-navy mb-1">{selectedDeal.product_name}</h2>
-            <p className="text-sm text-brand-orange font-medium mb-4">{selectedDeal.store_name}</p>
-            <p className="text-sm text-gray-500 mb-6">{selectedDeal.description}</p>
+                <h2 className="text-2xl font-bold text-brand-navy mb-1">{selectedDeal.product_name}</h2>
+                <p className="text-sm text-brand-orange font-medium mb-4">{selectedDeal.store_name}</p>
+                <p className="text-sm text-gray-500 mb-6">{selectedDeal.description}</p>
 
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="bg-brand-cream rounded-xl p-3 text-center">
@@ -405,14 +435,24 @@ export default function DashboardPage() {
               )}
             </button>
 
-            <a
-              href={`https://www.google.com/maps/dir/?api=1&destination=${selectedDeal.latitude},${selectedDeal.longitude}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block text-center text-sm text-brand-orange font-medium hover:text-brand-orange-dark transition-colors"
-            >
-              📍 Get Directions →
-            </a>
+            <div className="flex gap-3">
+              <button
+                className="flex-1 text-center py-3 bg-gray-50 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
+                onClick={() => alert("Chat feature is coming in Phase 2!")}
+              >
+                💬 Message Store
+              </button>
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${selectedDeal.latitude},${selectedDeal.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 text-center py-3 bg-orange-50 rounded-xl text-sm font-semibold text-brand-orange hover:bg-orange-100 transition-colors"
+              >
+                📍 Directions
+              </a>
+            </div>
+            </>
+            )}
           </div>
         </div>
       )}

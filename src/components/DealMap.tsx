@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Deal } from "@/lib/store";
@@ -16,6 +16,8 @@ export default function DealMap({ deals, center, onDealClick }: DealMapProps) {
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersGroupRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const [isSatellite, setIsSatellite] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !mapRef.current) return;
@@ -25,8 +27,9 @@ export default function DealMap({ deals, center, onDealClick }: DealMapProps) {
         zoomControl: false,
       }).setView([center.lat, center.lng], 14);
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      tileLayerRef.current = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 20
       }).addTo(mapInstanceRef.current);
       
       L.control.zoom({ position: 'bottomright' }).addTo(mapInstanceRef.current);
@@ -57,6 +60,16 @@ export default function DealMap({ deals, center, onDealClick }: DealMapProps) {
       userMarkerRef.current.setLatLng([center.lat, center.lng]);
     }
   }, [center.lat, center.lng]);
+
+  // Handle tile layer change
+  useEffect(() => {
+    if (tileLayerRef.current) {
+      const url = isSatellite 
+        ? "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" 
+        : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+      tileLayerRef.current.setUrl(url);
+    }
+  }, [isSatellite]);
   
   // Handle deals update
   useEffect(() => {
@@ -111,6 +124,13 @@ export default function DealMap({ deals, center, onDealClick }: DealMapProps) {
   return (
     <div className="w-full h-full rounded-2xl overflow-hidden border border-[#e5e7eb] shadow-sm relative z-0">
       <div ref={mapRef} className="w-full h-full relative z-0" style={{ zIndex: 0 }} />
+      <button 
+        onClick={() => setIsSatellite(!isSatellite)}
+        className="absolute bottom-4 left-4 z-[400] bg-white text-gray-700 px-3 py-2 rounded-lg shadow-lg font-semibold text-xs hover:bg-gray-50 border border-gray-200 transition-all flex items-center gap-2"
+        style={{ zIndex: 1000 }} // Leaflet controls are at z-index 1000
+      >
+        {isSatellite ? '🗺️ Map View' : '🛰️ Satellite'}
+      </button>
       <style dangerouslySetInnerHTML={{__html: `
         .leaflet-container { background: #FFF8F0; z-index: 0 !important; }
         .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 4px; border: 1px solid #f3f4f6; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }

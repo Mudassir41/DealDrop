@@ -13,6 +13,7 @@ interface DealFormData {
   description: string;
   discountPct: number;
   originalPrice: number;
+  salePrice: number;
   unitsAvailable: number;
   durationMinutes: number;
   geofenceRadius: number;
@@ -72,6 +73,7 @@ export default function DealerPage() {
     description: "",
     discountPct: 30,
     originalPrice: 100,
+    salePrice: 70,
     unitsAvailable: 20,
     durationMinutes: 60,
     geofenceRadius: 1000,
@@ -79,15 +81,25 @@ export default function DealerPage() {
   });
 
   const updateForm = (field: keyof DealFormData, value: any) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      
+      // Auto-calculate if price fields change
+      if (field === "originalPrice" || field === "discountPct") {
+        next.salePrice = Math.round(next.originalPrice * (1 - next.discountPct / 100));
+      } else if (field === "salePrice") {
+        next.discountPct = Math.round((1 - next.salePrice / next.originalPrice) * 100);
+        next.discountPct = Math.max(0, Math.min(100, next.discountPct));
+      }
+      
+      return next;
+    });
 
     // Trigger advisor when category or discount changes
-    if (field === "storeCategory" || field === "discountPct") {
-      fetchAdvisor(
-        field === "storeCategory" ? value : form.storeCategory,
-        form.unitsAvailable,
-        field === "discountPct" ? value : form.discountPct
-      );
+    if (field === "storeCategory" || field === "discountPct" || field === "salePrice") {
+      const category = field === "storeCategory" ? value : form.storeCategory;
+      const discount = field === "discountPct" ? value : (field === "salePrice" ? Math.round((1 - value / form.originalPrice) * 100) : form.discountPct);
+      fetchAdvisor(category, form.unitsAvailable, discount);
     }
   };
 
@@ -122,6 +134,16 @@ export default function DealerPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create deal");
+      
+      const newDealId = data.deal?.id;
+      if (newDealId) {
+        const savedDeals = JSON.parse(localStorage.getItem("dealdrop_my_deals") || "[]");
+        if (!savedDeals.includes(newDealId)) {
+          savedDeals.push(newDealId);
+          localStorage.setItem("dealdrop_my_deals", JSON.stringify(savedDeals));
+        }
+      }
+
       setLiveDeal(data);
       setStep("live");
     } catch (e: any) {
@@ -310,27 +332,35 @@ export default function DealerPage() {
                     type="number"
                     value={form.originalPrice}
                     onChange={(e) => updateForm("originalPrice", Number(e.target.value))}
+                    min={1}
                     className="w-full px-4 py-3 bg-brand-cream border border-orange-100 rounded-xl text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-brand-navy mb-2">Discount: {form.discountPct}%</label>
+                  <label className="block text-sm font-medium text-brand-navy mb-2">Sale price (₹)</label>
                   <input
-                    type="range"
-                    min={5}
-                    max={90}
-                    value={form.discountPct}
-                    onChange={(e) => updateForm("discountPct", Number(e.target.value))}
-                    className="w-full mt-3 accent-brand-orange"
+                    type="number"
+                    value={form.salePrice}
+                    onChange={(e) => updateForm("salePrice", Number(e.target.value))}
+                    min={1}
+                    className="w-full px-4 py-3 bg-brand-cream border border-orange-100 rounded-xl text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-orange/20 focus:border-brand-orange"
                   />
-                  <div className="flex justify-between text-xs text-gray-400 mt-1">
-                    <span>5%</span>
-                    <span className="font-semibold text-brand-orange">
-                      Sale: ₹{Math.round(form.originalPrice * (1 - form.discountPct / 100))}
-                    </span>
-                    <span>90%</span>
-                  </div>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-brand-navy mb-2 flex items-center justify-between">
+                  <span>Discount</span>
+                  <span className="text-brand-orange font-bold text-lg">{form.discountPct}% OFF</span>
+                </label>
+                <input
+                  type="range"
+                  min={5}
+                  max={95}
+                  value={form.discountPct}
+                  onChange={(e) => updateForm("discountPct", Number(e.target.value))}
+                  className="w-full mt-1 accent-brand-orange"
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-4">
@@ -464,10 +494,10 @@ export default function DealerPage() {
 
             <div className="flex gap-4">
               <Link
-                href="/deals"
+                href="/dealer/dashboard"
                 className="flex-1 bg-brand-cream text-brand-navy py-3 rounded-xl font-semibold text-center text-sm hover:bg-orange-100 transition-colors border border-orange-100"
               >
-                View on Map
+                Manage My Deals
               </Link>
               <button
                 onClick={() => { setStep("deal"); setLiveDeal(null); }}

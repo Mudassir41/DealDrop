@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const advisor = getAdvisorSuggestion(newDeal.category, newDeal.units_available, newDeal.discount_pct);
+    const advisor = await getAdvisorSuggestion(newDeal.category, newDeal.units_available, newDeal.discount_pct);
 
     return NextResponse.json({ deal: newDeal, notifyCount, advisor, source });
   } catch (error) {

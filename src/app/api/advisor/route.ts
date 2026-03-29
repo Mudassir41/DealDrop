@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing required parameters" }, { status: 400 });
   }
 
-  const suggestion = getAdvisorSuggestion(
+  const suggestion = await getAdvisorSuggestion(
     category,
     parseInt(units, 10),
     discount ? parseInt(discount, 10) : undefined
