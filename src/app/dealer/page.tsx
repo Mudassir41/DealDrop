@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 interface DealFormData {
   storeName: string;
@@ -45,6 +47,8 @@ const RADIUS_OPTIONS = [
 ];
 
 export default function DealerPage() {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
   const [step, setStep] = useState<"store" | "deal" | "live">("store");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [advisor, setAdvisor] = useState<any>(null);
@@ -52,22 +56,34 @@ export default function DealerPage() {
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
 
+  // Auth guard: redirect to login if no session
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        router.replace("/dealer/login");
+      } else {
+        setAuthChecked(true);
+      }
+    });
+  }, [router]);
+
+  useEffect(() => {
+    if (!authChecked) return;
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => setLocation({ lat: 12.9716, lng: 77.5946 }) // Default: Bangalore
+        () => setLocation({ lat: 13.0394, lng: 80.2325 }) // Fallback: Chennai T.Nagar
       );
     } else {
-      setLocation({ lat: 12.9716, lng: 77.5946 });
+      setLocation({ lat: 13.0394, lng: 80.2325 });
     }
-  }, []);
+  }, [authChecked]);
 
   const [form, setForm] = useState<DealFormData>({
     storeName: "",
     storeCategory: "food",
     storeAddress: "",
-    storeCity: "Bangalore",
+    storeCity: "Chennai",
     storePhone: "",
     productName: "",
     description: "",
@@ -79,6 +95,19 @@ export default function DealerPage() {
     geofenceRadius: 1000,
     telegramEnabled: true,
   });
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-brand-orange border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-gray-400">Checking credentials...</p>
+        </div>
+      </div>
+    );
+  }
+
+
 
   const updateForm = (field: keyof DealFormData, value: any) => {
     setForm((prev) => {
@@ -128,8 +157,8 @@ export default function DealerPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          latitude: location?.lat || 12.9716,
-          longitude: location?.lng || 77.5946,
+          latitude: location?.lat || 13.0394,
+          longitude: location?.lng || 80.2325,
         }),
       });
       const data = await res.json();

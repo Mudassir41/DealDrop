@@ -81,9 +81,12 @@ export default function DashboardPage() {
   const [claiming, setClaiming] = useState<string | null>(null);
   const [claimedDealQr, setClaimedDealQr] = useState<string | null>(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
-  const [locationLabel, setLocationLabel] = useState("Vandalur");
+  const [locationLabel, setLocationLabel] = useState("T. Nagar");
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(true);
+  const [locationSearch, setLocationSearch] = useState("");
+  const [locationResults, setLocationResults] = useState<Array<{ label: string; lat: number; lng: number }>>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -122,13 +125,13 @@ export default function DashboardPage() {
           localStorage.setItem("dealdrop_location", JSON.stringify(loc));
         },
         () => {
-          const fallback = { lat: 12.9010, lng: 80.0990 };
+          const fallback = { lat: 13.0394, lng: 80.2325 }; // T.Nagar Chennai
           setLocation(fallback);
           setShowLocationPicker(true);
         }
       );
     } else {
-      setLocation({ lat: 12.9010, lng: 80.0990 });
+      setLocation({ lat: 13.0394, lng: 80.2325 });
       setShowLocationPicker(true);
     }
   }, [router]);
@@ -141,7 +144,7 @@ export default function DashboardPage() {
         categories: profile.categories.join(","),
         lat: location.lat.toString(),
         lng: location.lng.toString(),
-        radius: "5000",
+        radius: "10000",
         tab: activeTab,
       });
       const res = await fetch(`/api/feed?${params}`);
@@ -186,6 +189,34 @@ export default function DashboardPage() {
     setLocationLabel("Custom Pin");
     localStorage.setItem("dealdrop_location", JSON.stringify(newLoc));
     localStorage.setItem("dealdrop_location_label", "Custom Pin");
+    setShowLocationPicker(false);
+  };
+
+  const searchLocation = async (query: string) => {
+    if (query.length < 3) { setLocationResults([]); return; }
+    setSearchLoading(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=in`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      const data = await res.json();
+      setLocationResults(data.map((r: any) => ({
+        label: r.display_name.split(",").slice(0, 3).join(", "),
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lon),
+      })));
+    } catch { setLocationResults([]); }
+    finally { setSearchLoading(false); }
+  };
+
+  const pickSearchResult = (result: { label: string; lat: number; lng: number }) => {
+    setLocation({ lat: result.lat, lng: result.lng });
+    setLocationLabel(result.label.split(",")[0]);
+    localStorage.setItem("dealdrop_location", JSON.stringify({ lat: result.lat, lng: result.lng }));
+    localStorage.setItem("dealdrop_location_label", result.label.split(",")[0]);
+    setLocationResults([]);
+    setLocationSearch("");
     setShowLocationPicker(false);
   };
 
@@ -235,14 +266,33 @@ export default function DashboardPage() {
         {showLocationPicker && (
           <div className="max-w-6xl mx-auto px-4 pb-3">
             <div className="bg-brand-cream rounded-xl p-3 border border-orange-100">
-              <div className="text-xs font-medium text-brand-navy mb-2">📍 Select your area:</div>
+              {/* Search Bar */}
+              <div className="relative mb-3">
+                <input
+                  type="text"
+                  placeholder="🔍  Search any location (e.g. Anna Nagar, Chennai)"
+                  value={locationSearch}
+                  onChange={(e) => { setLocationSearch(e.target.value); searchLocation(e.target.value); }}
+                  className="w-full text-xs px-3 py-2 rounded-lg border border-orange-200 bg-white focus:outline-none focus:border-brand-orange placeholder-gray-400"
+                />
+                {searchLoading && <span className="absolute right-2 top-2 text-[10px] text-gray-400">Searching...</span>}
+                {locationResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 mt-1 overflow-hidden">
+                    {locationResults.map((r, i) => (
+                      <button
+                        key={i}
+                        onClick={() => pickSearchResult(r)}
+                        className="w-full text-left text-xs px-3 py-2.5 hover:bg-orange-50 border-b border-gray-100 last:border-0 text-gray-700"
+                      >
+                        📍 {r.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Quick presets */}
+              <div className="text-[10px] text-gray-400 mb-1.5">Quick select · or tap map to drop pin</div>
               <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => { setShowLocationPicker(false); alert("Tap anywhere on the map to drop a pin and see deals!"); }}
-                  className="text-xs px-3 py-1.5 rounded-full font-bold bg-brand-navy text-white transition-all shadow-md shrink-0 flex items-center"
-                >
-                  📍 Drop Custom Pin
-                </button>
                 {AREA_PRESETS.map((area) => (
                   <button
                     key={area.label}
