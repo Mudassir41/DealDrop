@@ -115,41 +115,18 @@ Return a JSON string matching this exact interface, giving smart, data-driven ad
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "openai/gptoss-20b",
+        model: "llama3-70b-8192",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.4,
-        max_tokens: 300
+        max_tokens: 300,
+        response_format: { type: "json_object" }
       })
     });
 
-    if (!res.ok) {
-        // Fallback to llama3 if custom string not supported by Groq deployment
-        if (res.status === 404 || res.status === 400 || res.status === 403) {
-            const retry = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                  "Authorization": `Bearer ${apiKey}`,
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                  model: "llama3-70b-8192",
-                  messages: [{ role: "user", content: prompt }],
-                  temperature: 0.4,
-                  response_format: { type: "json_object" }
-                })
-            });
-            if (!retry.ok) throw new Error("Retry failed");
-            const data = await retry.json();
-            const content = JSON.parse(data.choices[0].message.content);
-            return { ...fallback, ...content };
-        }
-        throw new Error("Groq API error");
-    }
+    if (!res.ok) throw new Error(`Groq API error: ${res.status}`);
 
     const data = await res.json();
-    let contentStr = data.choices[0].message.content;
-    contentStr = contentStr.replace(/^```json/g, "").replace(/```$/g, "").trim();
-    const parsed = JSON.parse(contentStr);
+    const parsed = JSON.parse(data.choices[0].message.content);
     return { ...fallback, ...parsed };
   } catch (error) {
     console.warn("Groq LLM failed, using heuristic fallback:", error);

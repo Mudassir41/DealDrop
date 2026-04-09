@@ -182,3 +182,13 @@ WHERE id IS NOT NULL;
 
 UPDATE deals SET sale_price = ROUND((original_price * (1 - (discount_pct::float / 100)))::numeric, 2)
 WHERE id IS NOT NULL;
+
+-- 9. HELPER FUNCTION: atomically increment drop_points for a Telegram customer
+CREATE OR REPLACE FUNCTION increment_drop_points(p_telegram_chat_id BIGINT, p_amount INT)
+RETURNS void AS $$
+BEGIN
+  UPDATE customers
+  SET drop_points = drop_points + p_amount
+  WHERE telegram_chat_id = p_telegram_chat_id;
+END;
+$$ LANGUAGE plpgsql;

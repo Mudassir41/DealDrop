@@ -27,7 +27,7 @@ export interface Deal {
   units_available: number;
   units_claimed: number;
   geofence_radius: number;
-  status: "active" | "expired" | "paused";
+  status: "active" | "expired" | "paused" | "sold_out";
   channels: { telegram: boolean; whatsapp: boolean; google: boolean; instagram: boolean };
   starts_at: string;
   expires_at: string;

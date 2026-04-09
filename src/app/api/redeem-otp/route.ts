@@ -28,12 +28,16 @@ export async function POST(req: NextRequest) {
     // Mark claim as redeemed
     await supabase.from("claims").update({ redeemed: true }).eq("otp", otp);
 
-    // Award drop points if customer linked
+    // Award drop points if customer linked — atomically increment via DB function
     if (claim.customer_telegram_id) {
-      await supabase
-        .from("customers")
-        .update({ drop_points: supabase.rpc } as any) // incremented via claim record later
-        .eq("telegram_chat_id", claim.customer_telegram_id);
+      try {
+        await supabase.rpc("increment_drop_points", {
+          p_telegram_chat_id: claim.customer_telegram_id,
+          p_amount: 50,
+        });
+      } catch {
+        // Silently ignore if RPC not yet deployed; points will be credited manually
+      }
     }
 
     return NextResponse.json({

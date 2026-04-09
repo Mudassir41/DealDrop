@@ -163,12 +163,12 @@ export async function processChat(chatId: number, text: string, userLocation?: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "openai/gptoss-20b",
-        messages: history.map(m => ({ role: m.role, content: m.content || "" })), // Sanitize payloads
+        model: "llama3-70b-8192",
+        messages: history.map(m => ({ role: m.role, content: m.content || "" })),
         tools,
         tool_choice: "auto",
         temperature: 0.3,
-        max_completion_tokens: 300
+        max_tokens: 300
       })
     });
 
@@ -199,10 +199,20 @@ export async function processChat(chatId: number, text: string, userLocation?: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "openai/gptoss-20b",
-          messages: history.map(m => ({ role: m.role, content: m.content || "" })), // Exclude complex tool payloads to prevent strict API failures
+          model: "llama3-70b-8192",
+          messages: history.map(m => {
+            if (m.role === "tool") {
+              return { role: "tool", tool_call_id: m.tool_call_id, content: m.content };
+            }
+            if (m.role === "assistant") {
+              const msg: any = { role: "assistant", content: m.content ?? null };
+              if (m.tool_calls) msg.tool_calls = m.tool_calls;
+              return msg;
+            }
+            return { role: m.role, content: m.content || "" };
+          }),
           temperature: 0.3,
-          max_completion_tokens: 300
+          max_tokens: 300
         })
       });
 
